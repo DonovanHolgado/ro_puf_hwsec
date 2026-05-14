@@ -3,7 +3,7 @@ Implementation of a Ring Oscillator Physical Unclonable Function (PUF) on Xilinx
 
 # Contents
 - Necessary .vhd files and constraints
-- puf_data contains 98 runs from PYNQ-Z2, capture.tcl # Vivado TCL script for automated data collection and analyze_all_boards.py # Multi-board analysis including uniqueness
+- puf_data contains 98 runs from PYNQ-Z2, capture.tcl (Vivado TCL script for automated data collection) and analyze_all_boards.py (Multi-board analysis including uniqueness)
 - puf_data_zybo contains Zybo collected responses (13 runs)
 
 ## Reference
