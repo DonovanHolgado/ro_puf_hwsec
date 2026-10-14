@@ -12,6 +12,12 @@ set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets {gen_ros[*].ro_inst/t1}]
 set_property -dict { PACKAGE_PIN H16   IOSTANDARD LVCMOS33 } [get_ports { clk }]; #IO_L13P_T2_MRCC_35 Sch=sysclk
 create_clock -add -name sys_clk_pin -period 8.00 -waveform {0 4} [get_ports { clk }];
 
+## RO counter clocks (ring frequency / 2, through BUFGs). Period is a timing
+## target for the counters, not the actual ring frequency.
+create_clock -name ro_clk_a -period 5.000 [get_pins bufg_ro_a/O]
+create_clock -name ro_clk_b -period 5.000 [get_pins bufg_ro_b/O]
+set_clock_groups -asynchronous -group [get_clocks sys_clk_pin] -group [get_clocks ro_clk_a] -group [get_clocks ro_clk_b]
+
 ##Switches
 
 #set_property -dict { PACKAGE_PIN M20   IOSTANDARD LVCMOS33 } [get_ports { sw0 }]; #IO_L7N_T1_AD2N_35 Sch=sw[0]

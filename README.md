@@ -9,3 +9,7 @@ Implementation of a Ring Oscillator Physical Unclonable Function (PUF) on Xilinx
 
 ## Reference
 G. E. Suh and S. Devadas, "Physical Unclonable Functions for Device Authentication and Secret Key Generation," DAC 2007.
+
+## Build notes
+- Add `ro_placement.tcl` as the **opt_design tcl.post** hook and `ro_route.tcl` as the **route_design tcl.pre** hook (Implementation settings). They give every ring oscillator an identical placement and routing so each response bit depends on silicon variation rather than layout.
+- Expected warnings: combinational loops in the ROs, and flip-flops/BUFGs clocked from fabric logic.

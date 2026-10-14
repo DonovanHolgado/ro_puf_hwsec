@@ -2,6 +2,9 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
+library UNISIM;
+use UNISIM.VComponents.BUFG;
+
 entity top_level is
     Port (
         clk         : in  STD_LOGIC;
@@ -18,6 +21,7 @@ architecture Behavioral of top_level is
     constant NUM_PAIRS  : integer := 128;
     constant COUNT_BITS : integer := 32;
     constant WINDOW     : integer := 1000000;
+    constant SETTLE     : integer := 64;  -- cycles for counters to stop and sync
 
     -- State machine
     type state_type is (IDLE, ENABLE_ROS, WAIT_COUNT, COMPARE, STORE, COMPLETE);
@@ -38,15 +42,15 @@ architecture Behavioral of top_level is
     signal ro_out     : STD_LOGIC_VECTOR(NUM_ROS-1 downto 0);
     signal ro_a_sel   : STD_LOGIC;
     signal ro_b_sel   : STD_LOGIC;
+    signal ro_a_clk   : STD_LOGIC;
+    signal ro_b_clk   : STD_LOGIC;
 
     -- Counter signals
     signal cnt_rst    : STD_LOGIC := '0';
     signal cnt_en     : STD_LOGIC := '0';
     signal count_a    : STD_LOGIC_VECTOR(COUNT_BITS-1 downto 0);
     signal count_b    : STD_LOGIC_VECTOR(COUNT_BITS-1 downto 0);
-    signal cnt_done_a : STD_LOGIC;
-    signal cnt_done_b : STD_LOGIC;
-    signal window_cnt : integer range 0 to WINDOW := 0;
+    signal window_cnt : integer range 0 to WINDOW + SETTLE := 0;
 
     -- Comparator signals
     signal cmp_valid  : STD_LOGIC := '0';
@@ -59,7 +63,6 @@ architecture Behavioral of top_level is
 
     -- Component declarations
     component ring_oscillator
-        Generic (NUM_INVERTERS : integer := 5);
         Port (
             enable  : in  STD_LOGIC;
             clk_out : out STD_LOGIC
@@ -73,8 +76,7 @@ architecture Behavioral of top_level is
             rst    : in  STD_LOGIC;
             enable : in  STD_LOGIC;
             ro_clk : in  STD_LOGIC;
-            count  : out STD_LOGIC_VECTOR(COUNT_BITS-1 downto 0);
-            done   : out STD_LOGIC
+            count  : out STD_LOGIC_VECTOR(COUNT_BITS-1 downto 0)
         );
     end component;
 
@@ -130,10 +132,13 @@ begin
     ro_a_sel <= ro_out(pair_idx * 2);
     ro_b_sel <= ro_out(pair_idx * 2 + 1);
 
+    -- Global clock buffers for the selected RO pair (counter clocks)
+    bufg_ro_a: BUFG port map (I => ro_a_sel, O => ro_a_clk);
+    bufg_ro_b: BUFG port map (I => ro_b_sel, O => ro_b_clk);
+
     -- Ring oscillator instances
     gen_ros: for i in 0 to NUM_ROS-1 generate
         ro_inst: ring_oscillator
-            Generic map (NUM_INVERTERS => 5)
             Port map (
                 enable  => ro_enable,
                 clk_out => ro_out(i)
@@ -147,9 +152,8 @@ begin
             clk    => clk,
             rst    => cnt_rst,
             enable => cnt_en,
-            ro_clk => ro_a_sel,
-            count  => count_a,
-            done   => cnt_done_a
+            ro_clk => ro_a_clk,
+            count  => count_a
         );
 
     -- Counter B instance
@@ -159,9 +163,8 @@ begin
             clk    => clk,
             rst    => cnt_rst,
             enable => cnt_en,
-            ro_clk => ro_b_sel,
-            count  => count_b,
-            done   => cnt_done_b
+            ro_clk => ro_b_clk,
+            count  => count_b
         );
 
     -- Comparator instance
@@ -227,9 +230,14 @@ begin
 
                 when WAIT_COUNT =>
                     cnt_rst <= '0';
-                    cnt_en  <= '1';
-                    if window_cnt = WINDOW then
-                        cnt_en    <= '0';
+                    -- count for WINDOW cycles, then hold the ROs running
+                    -- while the counters stop and their values sync over
+                    if window_cnt < WINDOW then
+                        cnt_en <= '1';
+                    else
+                        cnt_en <= '0';
+                    end if;
+                    if window_cnt = WINDOW + SETTLE then
                         ro_enable <= '0';
                         cmp_valid <= '1';
                         state     <= COMPARE;
